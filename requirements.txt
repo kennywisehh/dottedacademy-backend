@@ -1,0 +1,13 @@
+django
+djangorestframework
+djangorestframework-simplejwt
+django-cors-headers
+django-environ
+cloudinary
+django-cloudinary-storage
+celery
+redis
+psycopg2-binary
+Pillow
+gunicorn
+whitenoise
