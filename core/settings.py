@@ -27,6 +27,7 @@ THIRD_PARTY_APPS = [
     'corsheaders',
     'cloudinary',
     'cloudinary_storage',
+    'drf_spectacular',
 ]
 
 LOCAL_APPS = [
@@ -121,6 +122,7 @@ REST_FRAMEWORK = {
     ),
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
     'PAGE_SIZE': 20,
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
 # JWT
@@ -132,11 +134,23 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
 }
 
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Dotted Academy API',
+    'DESCRIPTION': 'API documentation for Dotted Academy learning platform',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+}
+
 # CORS
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:3000',
     'https://dottedacademy.vercel.app',  # update with your actual Vercel URL
 ]
+
+CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[
+    'https://your-app.railway.app',
+    'https://dottedacademy.vercel.app',
+])
 CORS_ALLOW_CREDENTIALS = True
 
 # Redis & Celery
