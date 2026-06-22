@@ -6,10 +6,11 @@ from rest_framework.permissions import IsAuthenticated
 from courses.models import (
     Enrollment, LessonProgress, QuizAttempt, Certificate, Bookmark, Lesson
 )
-from .models import Streak, ActivityFeed
+from .models import Streak, ActivityFeed, Notification
 from .serializers import (
     EnrolledCourseSerializer, CertificateSerializer,
     BookmarkSerializer, StreakSerializer, ActivityFeedSerializer,
+    NotificationSerializer,
 )
 
 
@@ -128,3 +129,46 @@ class ActivityFeedListView(APIView):
         activities = ActivityFeed.objects.filter(user=request.user)[:50]
         serializer = ActivityFeedSerializer(activities, many=True)
         return Response(serializer.data)
+
+class BookmarkToggleView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, lesson_id):
+        try:
+            lesson = Lesson.objects.get(id=lesson_id)
+        except Lesson.DoesNotExist:
+            return Response({'detail': 'Lesson not found.'}, status=status.HTTP_404_NOT_FOUND)
+        bookmark, created = Bookmark.objects.get_or_create(user=request.user, lesson=lesson)
+        if not created:
+            return Response({'detail': 'Already bookmarked.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'detail': 'Bookmark added.'}, status=status.HTTP_201_CREATED)
+
+    def delete(self, request, lesson_id):
+        try:
+            bookmark = Bookmark.objects.get(user=request.user, lesson__id=lesson_id)
+        except Bookmark.DoesNotExist:
+            return Response({'detail': 'Bookmark not found.'}, status=status.HTTP_404_NOT_FOUND)
+        bookmark.delete()
+        return Response({'detail': 'Bookmark removed.'}, status=status.HTTP_204_NO_CONTENT)
+
+
+class NotificationListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        notifications = Notification.objects.filter(user=request.user)
+        serializer = NotificationSerializer(notifications, many=True)
+        return Response(serializer.data)
+
+
+class NotificationReadView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, id):
+        try:
+            notification = Notification.objects.get(id=id, user=request.user)
+        except Notification.DoesNotExist:
+            return Response({'detail': 'Notification not found.'}, status=status.HTTP_404_NOT_FOUND)
+        notification.is_read = True
+        notification.save(update_fields=['is_read'])
+        return Response({'detail': 'Notification marked as read.'})

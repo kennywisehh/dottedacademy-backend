@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from courses.models import Enrollment, Certificate, Bookmark, Lesson
-from .models import Streak, ActivityFeed
+from .models import Streak, ActivityFeed, Notification
 
 
 class EnrolledCourseSerializer(serializers.ModelSerializer):
@@ -59,3 +59,8 @@ class ActivityFeedSerializer(serializers.ModelSerializer):
     class Meta:
         model = ActivityFeed
         fields = ['id', 'description', 'created_at']
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['id', 'title', 'message', 'is_read', 'created_at']
