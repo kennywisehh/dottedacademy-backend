@@ -74,6 +74,13 @@ class AdminCourseSerializer(serializers.ModelSerializer):
             'department', 'course_level', 'category', 'instructor', 'instructor_email',
             'created_at', 'updated_at',
         ]
+        read_only_fields = ['enrolled_count', 'average_rating', 'created_at', 'updated_at']
+        extra_kwargs = {
+            'instructor': {'required': False, 'allow_null': True},
+            'department': {'required': False, 'allow_null': True},
+            'course_level': {'required': False, 'allow_null': True},
+            'category': {'required': False, 'allow_null': True},
+        }
 
 
 class AdminModuleSerializer(serializers.ModelSerializer):
