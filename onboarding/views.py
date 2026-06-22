@@ -2,6 +2,8 @@ from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from drf_spectacular.utils import extend_schema, OpenApiResponse, inline_serializer
+from rest_framework import serializers as s
 from .models import OnboardingProfile, UniversityProfile, SkillsProfile
 from .serializers import (
     SectionSerializer,
@@ -13,18 +15,26 @@ from subscriptions.models import Plan, Subscription
 from django.utils import timezone
 from datetime import timedelta
 
+
 class SectionView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        request=SectionSerializer,
+        responses={
+            200: SectionSerializer,
+            400: OpenApiResponse(description='Section already selected or validation error'),
+        },
+        summary='Select onboarding section',
+        tags=['Onboarding'],
+    )
     def post(self, request):
         onboarding, _ = OnboardingProfile.objects.get_or_create(user=request.user)
-
         if onboarding.selected_section:
             return Response(
                 {'detail': 'Section already selected. Use the update endpoint.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-
         serializer = SectionSerializer(onboarding, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
@@ -35,15 +45,21 @@ class SectionView(APIView):
 class SectionUpdateView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        request=SectionSerializer,
+        responses={
+            200: SectionSerializer,
+            404: OpenApiResponse(description='Onboarding profile not found'),
+            400: OpenApiResponse(description='Validation error'),
+        },
+        summary='Update onboarding section',
+        tags=['Onboarding'],
+    )
     def put(self, request):
         try:
             onboarding = OnboardingProfile.objects.get(user=request.user)
         except OnboardingProfile.DoesNotExist:
-            return Response(
-                {'detail': 'Onboarding profile not found.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
+            return Response({'detail': 'Onboarding profile not found.'}, status=status.HTTP_404_NOT_FOUND)
         serializer = SectionSerializer(onboarding, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
@@ -54,27 +70,24 @@ class SectionUpdateView(APIView):
 class UniversityProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        request=UniversityProfileSerializer,
+        responses={
+            201: UniversityProfileSerializer,
+            400: OpenApiResponse(description='Validation error or profile already exists'),
+        },
+        summary='Create university onboarding profile',
+        tags=['Onboarding'],
+    )
     def post(self, request):
         try:
             onboarding = OnboardingProfile.objects.get(user=request.user)
         except OnboardingProfile.DoesNotExist:
-            return Response(
-                {'detail': 'Complete section selection first.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
+            return Response({'detail': 'Complete section selection first.'}, status=status.HTTP_400_BAD_REQUEST)
         if onboarding.selected_section not in ['university', 'both']:
-            return Response(
-                {'detail': 'You did not select university as a section.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
+            return Response({'detail': 'You did not select university as a section.'}, status=status.HTTP_400_BAD_REQUEST)
         if hasattr(onboarding, 'university_profile'):
-            return Response(
-                {'detail': 'University profile already exists. Use the update endpoint.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
+            return Response({'detail': 'University profile already exists. Use the update endpoint.'}, status=status.HTTP_400_BAD_REQUEST)
         serializer = UniversityProfileSerializer(data=request.data)
         if serializer.is_valid():
             serializer.save(onboarding=onboarding)
@@ -85,21 +98,24 @@ class UniversityProfileView(APIView):
 class UniversityProfileUpdateView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        request=UniversityProfileSerializer,
+        responses={
+            200: UniversityProfileSerializer,
+            404: OpenApiResponse(description='Profile not found'),
+            400: OpenApiResponse(description='Validation error'),
+        },
+        summary='Update university onboarding profile',
+        tags=['Onboarding'],
+    )
     def put(self, request):
         try:
             onboarding = OnboardingProfile.objects.get(user=request.user)
             university_profile = onboarding.university_profile
         except OnboardingProfile.DoesNotExist:
-            return Response(
-                {'detail': 'Onboarding profile not found.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({'detail': 'Onboarding profile not found.'}, status=status.HTTP_404_NOT_FOUND)
         except UniversityProfile.DoesNotExist:
-            return Response(
-                {'detail': 'University profile not found. Use the create endpoint.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
+            return Response({'detail': 'University profile not found. Use the create endpoint.'}, status=status.HTTP_404_NOT_FOUND)
         serializer = UniversityProfileSerializer(university_profile, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
@@ -110,27 +126,24 @@ class UniversityProfileUpdateView(APIView):
 class SkillsProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        request=SkillsProfileSerializer,
+        responses={
+            201: SkillsProfileSerializer,
+            400: OpenApiResponse(description='Validation error or profile already exists'),
+        },
+        summary='Create skills onboarding profile',
+        tags=['Onboarding'],
+    )
     def post(self, request):
         try:
             onboarding = OnboardingProfile.objects.get(user=request.user)
         except OnboardingProfile.DoesNotExist:
-            return Response(
-                {'detail': 'Complete section selection first.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
+            return Response({'detail': 'Complete section selection first.'}, status=status.HTTP_400_BAD_REQUEST)
         if onboarding.selected_section not in ['skills', 'both']:
-            return Response(
-                {'detail': 'You did not select skills as a section.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
+            return Response({'detail': 'You did not select skills as a section.'}, status=status.HTTP_400_BAD_REQUEST)
         if hasattr(onboarding, 'skills_profile'):
-            return Response(
-                {'detail': 'Skills profile already exists. Use the update endpoint.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
+            return Response({'detail': 'Skills profile already exists. Use the update endpoint.'}, status=status.HTTP_400_BAD_REQUEST)
         serializer = SkillsProfileSerializer(data=request.data)
         if serializer.is_valid():
             skills_profile = serializer.save(onboarding=onboarding)
@@ -141,21 +154,24 @@ class SkillsProfileView(APIView):
 class SkillsProfileUpdateView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        request=SkillsProfileSerializer,
+        responses={
+            200: SkillsProfileSerializer,
+            404: OpenApiResponse(description='Profile not found'),
+            400: OpenApiResponse(description='Validation error'),
+        },
+        summary='Update skills onboarding profile',
+        tags=['Onboarding'],
+    )
     def put(self, request):
         try:
             onboarding = OnboardingProfile.objects.get(user=request.user)
             skills_profile = onboarding.skills_profile
         except OnboardingProfile.DoesNotExist:
-            return Response(
-                {'detail': 'Onboarding profile not found.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
+            return Response({'detail': 'Onboarding profile not found.'}, status=status.HTTP_404_NOT_FOUND)
         except SkillsProfile.DoesNotExist:
-            return Response(
-                {'detail': 'Skills profile not found. Use the create endpoint.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
+            return Response({'detail': 'Skills profile not found. Use the create endpoint.'}, status=status.HTTP_404_NOT_FOUND)
         serializer = SkillsProfileSerializer(skills_profile, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
@@ -166,15 +182,19 @@ class SkillsProfileUpdateView(APIView):
 class OnboardingStatusView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        responses={
+            200: OnboardingStatusSerializer,
+            404: OpenApiResponse(description='Onboarding not started'),
+        },
+        summary='Get onboarding status',
+        tags=['Onboarding'],
+    )
     def get(self, request):
         try:
             onboarding = OnboardingProfile.objects.get(user=request.user)
         except OnboardingProfile.DoesNotExist:
-            return Response(
-                {'detail': 'Onboarding not started.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
+            return Response({'detail': 'Onboarding not started.'}, status=status.HTTP_404_NOT_FOUND)
         serializer = OnboardingStatusSerializer(onboarding)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
@@ -182,44 +202,32 @@ class OnboardingStatusView(APIView):
 class OnboardingCompleteView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        request=None,
+        responses={
+            200: OpenApiResponse(description='Onboarding complete. Free trial activated.'),
+            400: OpenApiResponse(description='Onboarding already completed or steps missing'),
+            404: OpenApiResponse(description='Onboarding profile not found'),
+        },
+        summary='Complete onboarding and activate free trial',
+        tags=['Onboarding'],
+    )
     def post(self, request):
         try:
             onboarding = OnboardingProfile.objects.get(user=request.user)
         except OnboardingProfile.DoesNotExist:
-            return Response(
-                {'detail': 'Onboarding profile not found.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
+            return Response({'detail': 'Onboarding profile not found.'}, status=status.HTTP_404_NOT_FOUND)
         if onboarding.is_completed:
-            return Response(
-                {'detail': 'Onboarding already completed.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        # Validate all required steps are done
+            return Response({'detail': 'Onboarding already completed.'}, status=status.HTTP_400_BAD_REQUEST)
         section = onboarding.selected_section
         if not section:
-            return Response(
-                {'detail': 'Please select a section first.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
+            return Response({'detail': 'Please select a section first.'}, status=status.HTTP_400_BAD_REQUEST)
         if section in ['university', 'both'] and not hasattr(onboarding, 'university_profile'):
-            return Response(
-                {'detail': 'Please complete your university profile.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
+            return Response({'detail': 'Please complete your university profile.'}, status=status.HTTP_400_BAD_REQUEST)
         if section in ['skills', 'both'] and not hasattr(onboarding, 'skills_profile'):
-            return Response(
-                {'detail': 'Please complete your skills profile.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
+            return Response({'detail': 'Please complete your skills profile.'}, status=status.HTTP_400_BAD_REQUEST)
         onboarding.is_completed = True
         onboarding.save()
-        
         plan_type = 'combined' if section == 'both' else section
         try:
             plan = Plan.objects.get(plan_type=plan_type, is_active=True)
@@ -233,9 +241,5 @@ class OnboardingCompleteView(APIView):
                 }
             )
         except Plan.DoesNotExist:
-            pass  # fail silently, don't block onboarding completion
-
-        return Response(
-            {'detail': 'Onboarding complete. Your free trial has been activated.'},
-            status=status.HTTP_200_OK
-        )
+            pass
+        return Response({'detail': 'Onboarding complete. Your free trial has been activated.'}, status=status.HTTP_200_OK)

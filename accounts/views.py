@@ -6,6 +6,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from django.contrib.auth import get_user_model
 from django.utils import timezone
+from drf_spectacular.utils import extend_schema, OpenApiResponse, inline_serializer
+from rest_framework import serializers as s
 from .models import EmailVerificationToken, PasswordResetToken
 from .serializers import (
     RegisterSerializer, LoginSerializer, UserSerializer,
@@ -21,14 +23,24 @@ User = get_user_model()
 class RegisterView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=RegisterSerializer,
+        responses={
+            201: inline_serializer('RegisterResponse', fields={
+                'message': s.CharField(),
+                'user': UserSerializer(),
+            }),
+            400: OpenApiResponse(description='Validation error'),
+        },
+        summary='Register a new user',
+        tags=['Auth'],
+    )
     def post(self, request):
         serializer = RegisterSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
-            # Create verification token and send email
             token_obj, _ = EmailVerificationToken.objects.get_or_create(user=user)
             send_verification_email(user, token_obj.token)
-            # Create a streak for the user
             Streak.objects.create(user=user)
             return Response({
                 'message': 'Registration successful. Please check your email to verify your account.',
@@ -40,12 +52,25 @@ class RegisterView(APIView):
 class LoginView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=LoginSerializer,
+        responses={
+            200: inline_serializer('LoginResponse', fields={
+                'access': s.CharField(),
+                'refresh': s.CharField(),
+                'user': UserSerializer(),
+            }),
+            400: OpenApiResponse(description='Invalid credentials'),
+        },
+        summary='Login with email and password',
+        tags=['Auth'],
+    )
     def post(self, request):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
             user = serializer.validated_data['user']
             refresh = RefreshToken.for_user(user)
-            Streak.record_login(user)  # Record login for streak tracking
+            Streak.record_login(user)
             return Response({
                 'access': str(refresh.access_token),
                 'refresh': str(refresh),
@@ -57,6 +82,17 @@ class LoginView(APIView):
 class LogoutView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        request=inline_serializer('LogoutRequest', fields={
+            'refresh': s.CharField(),
+        }),
+        responses={
+            200: OpenApiResponse(description='Logged out successfully'),
+            400: OpenApiResponse(description='Invalid or missing refresh token'),
+        },
+        summary='Logout and blacklist refresh token',
+        tags=['Auth'],
+    )
     def post(self, request):
         try:
             refresh_token = request.data.get('refresh')
@@ -72,6 +108,20 @@ class LogoutView(APIView):
 class TokenRefreshView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=inline_serializer('TokenRefreshRequest', fields={
+            'refresh': s.CharField(),
+        }),
+        responses={
+            200: inline_serializer('TokenRefreshResponse', fields={
+                'access': s.CharField(),
+                'refresh': s.CharField(),
+            }),
+            400: OpenApiResponse(description='Invalid or missing refresh token'),
+        },
+        summary='Refresh access token',
+        tags=['Auth'],
+    )
     def post(self, request):
         try:
             refresh_token = request.data.get('refresh')
@@ -89,6 +139,15 @@ class TokenRefreshView(APIView):
 class VerifyEmailView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=VerifyEmailSerializer,
+        responses={
+            200: OpenApiResponse(description='Email verified successfully'),
+            400: OpenApiResponse(description='Invalid or expired token'),
+        },
+        summary='Verify email with token',
+        tags=['Auth'],
+    )
     def post(self, request):
         serializer = VerifyEmailSerializer(data=request.data)
         if serializer.is_valid():
@@ -108,18 +167,26 @@ class VerifyEmailView(APIView):
 class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=PasswordResetRequestSerializer,
+        responses={
+            200: OpenApiResponse(description='Reset email sent if account exists'),
+            400: OpenApiResponse(description='Validation error'),
+        },
+        summary='Request password reset email',
+        tags=['Auth'],
+    )
     def post(self, request):
         serializer = PasswordResetRequestSerializer(data=request.data)
         if serializer.is_valid():
             email = serializer.validated_data['email']
             try:
                 user = User.objects.get(email=email)
-                # Invalidate old tokens
                 PasswordResetToken.objects.filter(user=user, is_used=False).update(is_used=True)
                 token_obj = PasswordResetToken.objects.create(user=user)
                 send_password_reset_email(user, token_obj.token)
             except User.DoesNotExist:
-                pass  # Don't reveal if email exists
+                pass
             return Response({'message': 'If this email exists, a password reset link has been sent.'}, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -127,6 +194,15 @@ class PasswordResetRequestView(APIView):
 class PasswordResetConfirmView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=PasswordResetConfirmSerializer,
+        responses={
+            200: OpenApiResponse(description='Password reset successful'),
+            400: OpenApiResponse(description='Invalid or expired token'),
+        },
+        summary='Confirm password reset with token',
+        tags=['Auth'],
+    )
     def post(self, request):
         serializer = PasswordResetConfirmSerializer(data=request.data)
         if serializer.is_valid():
@@ -144,9 +220,21 @@ class PasswordResetConfirmView(APIView):
                 return Response({'error': 'Invalid or expired reset token.'}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 class ResendVerificationEmailView(APIView):
     permission_classes = [AllowAny]
 
+    @extend_schema(
+        request=inline_serializer('ResendVerificationRequest', fields={
+            'email': s.EmailField(),
+        }),
+        responses={
+            200: OpenApiResponse(description='Verification email sent if account exists'),
+            400: OpenApiResponse(description='Email is required'),
+        },
+        summary='Resend email verification link',
+        tags=['Auth'],
+    )
     def post(self, request):
         email = request.data.get('email')
         if not email:
@@ -155,7 +243,6 @@ class ResendVerificationEmailView(APIView):
             user = User.objects.get(email=email)
             if user.is_verified:
                 return Response({'message': 'This account is already verified.'}, status=status.HTTP_200_OK)
-            # Invalidate old tokens
             EmailVerificationToken.objects.filter(user=user).delete()
             token_obj = EmailVerificationToken.objects.create(user=user)
             send_verification_email(user, token_obj.token)
