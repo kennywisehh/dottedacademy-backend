@@ -149,7 +149,7 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 CSRF_TRUSTED_ORIGINS = env.list('CSRF_TRUSTED_ORIGINS', default=[
-    'https://your-app.railway.app',
+    'https://dottedacademy-backend-production.up.railway.app',
     'https://dottedacademy.vercel.app',
 ])
 CORS_ALLOW_CREDENTIALS = True
