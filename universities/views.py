@@ -1,4 +1,5 @@
 from rest_framework import generics
+from rest_framework.permissions import AllowAny
 from rest_framework.exceptions import NotFound
 from .models import University, Faculty, Department
 from .serializers import (
@@ -13,6 +14,7 @@ from .serializers import (
 class UniversityListView(generics.ListAPIView):
     """GET /api/universities/ — list all active universities"""
     serializer_class = UniversitySerializer
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         return University.objects.filter(is_active=True)
@@ -21,6 +23,7 @@ class UniversityListView(generics.ListAPIView):
 class UniversitySearchView(generics.ListAPIView):
     """GET /api/universities/search/?q={query}"""
     serializer_class = UniversitySerializer
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         q = self.request.query_params.get('q', '').strip()
@@ -33,6 +36,7 @@ class UniversityDetailView(generics.RetrieveAPIView):
     """GET /api/universities/{id}/"""
     serializer_class = UniversityDetailSerializer
     lookup_field = 'id'
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         return University.objects.filter(is_active=True)
@@ -41,6 +45,7 @@ class UniversityDetailView(generics.RetrieveAPIView):
 class FacultyListView(generics.ListAPIView):
     """GET /api/universities/{id}/faculties/"""
     serializer_class = FacultySerializer
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         university_id = self.kwargs['id']
@@ -52,6 +57,7 @@ class FacultyListView(generics.ListAPIView):
 class FacultyDetailView(generics.RetrieveAPIView):
     """GET /api/universities/{id}/faculties/{faculty_id}/"""
     serializer_class = FacultyWithDepartmentsSerializer
+    permission_classes = [AllowAny]
 
     def get_object(self):
         university_id = self.kwargs['id']
@@ -67,6 +73,7 @@ class FacultyDetailView(generics.RetrieveAPIView):
 class DepartmentListView(generics.ListAPIView):
     """GET /api/universities/{id}/faculties/{faculty_id}/departments/"""
     serializer_class = DepartmentSerializer
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         university_id = self.kwargs['id']
@@ -81,6 +88,7 @@ class DepartmentListView(generics.ListAPIView):
 class DepartmentDetailView(generics.RetrieveAPIView):
     """GET /api/universities/{id}/faculties/{faculty_id}/departments/{department_id}/"""
     serializer_class = DepartmentSerializer
+    permission_classes = [AllowAny]
 
     def get_object(self):
         university_id = self.kwargs['id']
