@@ -3,7 +3,7 @@ from django.db.models import Q
 from rest_framework import status
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from drf_spectacular.utils import extend_schema, OpenApiResponse, inline_serializer
 from rest_framework import serializers as s
 from .models import (
@@ -52,19 +52,20 @@ def check_and_complete_course(user, course):
             Certificate.objects.get_or_create(user=user, course=course)
 
 
-# ─── Course Views ─────────────────────────────────────────────────────
+# ─── Course Views (public discovery) ──────────────────────────────────
+# Browsing/searching/previewing courses is open to everyone. The
+# subscription gate applies at consumption (modules/lessons/enroll),
+# not at discovery.
 
 class CourseListView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     @extend_schema(
-        responses={200: CourseListSerializer(many=True), 403: OpenApiResponse(description='No active subscription')},
+        responses={200: CourseListSerializer(many=True)},
         summary='List all published courses',
         tags=['Courses'],
     )
     def get(self, request):
-        if not has_active_subscription(request.user):
-            return Response({'detail': 'An active subscription is required to view courses.'}, status=status.HTTP_403_FORBIDDEN)
         queryset = Course.objects.filter(status='published')
         category = request.query_params.get('category')
         level = request.query_params.get('level')
@@ -83,55 +84,50 @@ class CourseListView(APIView):
 
 
 class UniversityCourseListView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     @extend_schema(
-        responses={200: CourseListSerializer(many=True), 403: OpenApiResponse(description='No active subscription')},
+        responses={200: CourseListSerializer(many=True)},
         summary='List university courses tailored to user profile',
         tags=['Courses'],
     )
     def get(self, request):
-        if not has_active_subscription(request.user):
-            return Response({'detail': 'An active subscription is required.'}, status=status.HTTP_403_FORBIDDEN)
         queryset = Course.objects.filter(status='published', sector='university')
-        try:
-            university_profile = request.user.onboarding.university_profile
-            department = university_profile.department
-            course_level = university_profile.level
-            queryset = queryset.filter(department=department, course_level=course_level)
-        except Exception:
-            pass
+        if request.user.is_authenticated:
+            try:
+                university_profile = request.user.onboarding.university_profile
+                department = university_profile.department
+                course_level = university_profile.level
+                queryset = queryset.filter(department=department, course_level=course_level)
+            except Exception:
+                pass
         serializer = CourseListSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
 
 
 class SkillsCourseListView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     @extend_schema(
-        responses={200: CourseListSerializer(many=True), 403: OpenApiResponse(description='No active subscription')},
+        responses={200: CourseListSerializer(many=True)},
         summary='List skills courses',
         tags=['Courses'],
     )
     def get(self, request):
-        if not has_active_subscription(request.user):
-            return Response({'detail': 'An active subscription is required.'}, status=status.HTTP_403_FORBIDDEN)
         queryset = Course.objects.filter(status='published', sector='skills')
         serializer = CourseListSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
 
 
 class CourseSearchView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     @extend_schema(
-        responses={200: CourseListSerializer(many=True), 403: OpenApiResponse(description='No active subscription')},
+        responses={200: CourseListSerializer(many=True)},
         summary='Search published courses',
         tags=['Courses'],
     )
     def get(self, request):
-        if not has_active_subscription(request.user):
-            return Response({'detail': 'An active subscription is required.'}, status=status.HTTP_403_FORBIDDEN)
         q = request.query_params.get('q', '').strip()
         if not q:
             return Response([])
@@ -144,48 +140,42 @@ class CourseSearchView(APIView):
 
 
 class FeaturedCourseListView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     @extend_schema(
-        responses={200: CourseListSerializer(many=True), 403: OpenApiResponse(description='No active subscription')},
+        responses={200: CourseListSerializer(many=True)},
         summary='List featured courses',
         tags=['Courses'],
     )
     def get(self, request):
-        if not has_active_subscription(request.user):
-            return Response({'detail': 'An active subscription is required.'}, status=status.HTTP_403_FORBIDDEN)
         queryset = Course.objects.filter(status='published', is_featured=True)
         serializer = CourseListSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
 
 
 class PopularCourseListView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     @extend_schema(
-        responses={200: CourseListSerializer(many=True), 403: OpenApiResponse(description='No active subscription')},
+        responses={200: CourseListSerializer(many=True)},
         summary='List popular courses by enrollment count',
         tags=['Courses'],
     )
     def get(self, request):
-        if not has_active_subscription(request.user):
-            return Response({'detail': 'An active subscription is required.'}, status=status.HTTP_403_FORBIDDEN)
         queryset = Course.objects.filter(status='published').order_by('-enrolled_count')[:20]
         serializer = CourseListSerializer(queryset, many=True, context={'request': request})
         return Response(serializer.data)
 
 
 class CourseDetailView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     @extend_schema(
-        responses={200: CourseDetailSerializer, 403: OpenApiResponse(description='No active subscription'), 404: OpenApiResponse(description='Course not found')},
+        responses={200: CourseDetailSerializer, 404: OpenApiResponse(description='Course not found')},
         summary='Get course detail',
         tags=['Courses'],
     )
     def get(self, request, id):
-        if not has_active_subscription(request.user):
-            return Response({'detail': 'An active subscription is required.'}, status=status.HTTP_403_FORBIDDEN)
         try:
             course = Course.objects.get(id=id, status='published')
         except Course.DoesNotExist:
@@ -215,7 +205,7 @@ class CourseEnrollmentStatusView(APIView):
 
 
 class CourseEnrolledCountView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     @extend_schema(
         responses={
@@ -232,6 +222,8 @@ class CourseEnrolledCountView(APIView):
             return Response({'detail': 'Course not found.'}, status=status.HTTP_404_NOT_FOUND)
         return Response({'enrolled_count': course.enrolled_count})
 
+
+# ─── Consumption Views (gated: auth + subscription/enrollment) ───────
 
 class EnrollView(APIView):
     permission_classes = [IsAuthenticated]
@@ -596,7 +588,7 @@ class SubmitQuizView(APIView):
 # ─── Review Views ─────────────────────────────────────────────────────
 
 class CourseReviewListView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     @extend_schema(
         responses={200: CourseReviewSerializer(many=True), 404: OpenApiResponse(description='Course not found')},
@@ -624,6 +616,8 @@ class CourseReviewListView(APIView):
         tags=['Courses'],
     )
     def post(self, request, id):
+        if not request.user.is_authenticated:
+            return Response({'detail': 'Authentication required.'}, status=status.HTTP_401_UNAUTHORIZED)
         try:
             course = Course.objects.get(id=id, status='published')
         except Course.DoesNotExist:
