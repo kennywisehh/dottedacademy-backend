@@ -1,6 +1,11 @@
 import uuid
+import random
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from django.db import models
+
+
+def generate_otp():
+    return str(random.randint(100000, 999999))
 
 
 class UserManager(BaseUserManager):
@@ -55,7 +60,7 @@ class User(AbstractBaseUser, PermissionsMixin):
 class EmailVerificationToken(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='verification_token')
-    token = models.UUIDField(default=uuid.uuid4, unique=True)
+    token = models.CharField(max_length=6, default=generate_otp, unique=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
@@ -65,7 +70,7 @@ class EmailVerificationToken(models.Model):
 class PasswordResetToken(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_reset_tokens')
-    token = models.UUIDField(default=uuid.uuid4, unique=True)
+    token = models.CharField(max_length=6, default=generate_otp, unique=True)
     is_used = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 

@@ -48,7 +48,7 @@ class PasswordResetRequestSerializer(serializers.Serializer):
 
 
 class PasswordResetConfirmSerializer(serializers.Serializer):
-    token = serializers.UUIDField()
+    token = serializers.CharField(max_length=6, min_length=6)
     password = serializers.CharField(write_only=True, min_length=8)
     confirm_password = serializers.CharField(write_only=True)
 
@@ -59,4 +59,4 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
 
 
 class VerifyEmailSerializer(serializers.Serializer):
-    token = serializers.UUIDField()
+    token = serializers.CharField(max_length=6, min_length=6)

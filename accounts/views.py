@@ -16,6 +16,8 @@ from .serializers import (
 )
 from .tasks import send_verification_email_task, send_password_reset_email_task
 from learner.models import Streak
+from datetime import timedelta
+from django.utils import timezone
 
 User = get_user_model()
 
@@ -136,13 +138,21 @@ class TokenRefreshView(APIView):
             return Response({'error': 'Invalid or expired token.'}, status=status.HTTP_400_BAD_REQUEST)
 
 
+OTP_EXPIRY_MINUTES = 15
+
+
 class VerifyEmailView(APIView):
     permission_classes = [AllowAny]
 
     @extend_schema(
         request=VerifyEmailSerializer,
         responses={
-            200: OpenApiResponse(description='Email verified successfully'),
+            200: inline_serializer('VerifyEmailResponse', fields={
+                'message': s.CharField(),
+                'access': s.CharField(),
+                'refresh': s.CharField(),
+                'user': UserSerializer(),
+            }),
             400: OpenApiResponse(description='Invalid or expired token'),
         },
         summary='Verify email with token',
@@ -154,15 +164,27 @@ class VerifyEmailView(APIView):
             token = serializer.validated_data['token']
             try:
                 token_obj = EmailVerificationToken.objects.get(token=token)
+
+                expiry_cutoff = timezone.now() - timedelta(minutes=OTP_EXPIRY_MINUTES)
+                if token_obj.created_at < expiry_cutoff:
+                    token_obj.delete()
+                    return Response({'error': 'This code has expired. Please request a new one.'}, status=status.HTTP_400_BAD_REQUEST)
+
                 user = token_obj.user
                 user.is_verified = True
                 user.save()
                 token_obj.delete()
-                return Response({'message': 'Email verified successfully.'}, status=status.HTTP_200_OK)
+
+                refresh = RefreshToken.for_user(user)
+                return Response({
+                    'message': 'Email verified successfully.',
+                    'access': str(refresh.access_token),
+                    'refresh': str(refresh),
+                    'user': UserSerializer(user).data,
+                }, status=status.HTTP_200_OK)
             except EmailVerificationToken.DoesNotExist:
                 return Response({'error': 'Invalid or expired verification token.'}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
@@ -210,6 +232,13 @@ class PasswordResetConfirmView(APIView):
             password = serializer.validated_data['password']
             try:
                 token_obj = PasswordResetToken.objects.get(token=token, is_used=False)
+
+                expiry_cutoff = timezone.now() - timedelta(minutes=OTP_EXPIRY_MINUTES)
+                if token_obj.created_at < expiry_cutoff:
+                    token_obj.is_used = True
+                    token_obj.save()
+                    return Response({'error': 'This code has expired. Please request a new one.'}, status=status.HTTP_400_BAD_REQUEST)
+
                 user = token_obj.user
                 user.set_password(password)
                 user.save()
@@ -219,7 +248,6 @@ class PasswordResetConfirmView(APIView):
             except PasswordResetToken.DoesNotExist:
                 return Response({'error': 'Invalid or expired reset token.'}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
 
 class ResendVerificationEmailView(APIView):
     permission_classes = [AllowAny]
