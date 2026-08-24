@@ -291,3 +291,42 @@ class ResendVerificationEmailView(APIView):
             return Response({'message': 'Verification email resent. Please check your inbox.'}, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response({'message': 'If this email exists, a verification email has been sent.'}, status=status.HTTP_200_OK)
+
+
+class ProfileView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        responses={200: UserSerializer()},
+        summary='Get current user profile',
+        tags=['Auth'],
+    )
+    def get(self, request):
+        return Response(UserSerializer(request.user).data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        request=UserSerializer,
+        responses={
+            200: UserSerializer(),
+            400: OpenApiResponse(description='Validation error'),
+        },
+        summary='Update current user profile',
+        tags=['Auth'],
+    )
+    def patch(self, request):
+        serializer = UserSerializer(request.user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @extend_schema(
+        responses={200: OpenApiResponse(description='Account deactivated successfully')},
+        summary='Deactivate current user account',
+        tags=['Auth'],
+    )
+    def delete(self, request):
+        user = request.user
+        user.is_active = False
+        user.save()
+        return Response({'message': 'Account deactivated successfully.'}, status=status.HTTP_200_OK)
