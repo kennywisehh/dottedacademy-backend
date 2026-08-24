@@ -302,7 +302,7 @@ class ProfileView(APIView):
         tags=['Auth'],
     )
     def get(self, request):
-        return Response(UserSerializer(request.user).data, status=status.HTTP_200_OK)
+        return Response(UserSerializer(request.user, context={'request': request}).data, status=status.HTTP_200_OK)
 
     @extend_schema(
         request=UserSerializer,
@@ -314,7 +314,7 @@ class ProfileView(APIView):
         tags=['Auth'],
     )
     def patch(self, request):
-        serializer = UserSerializer(request.user, data=request.data, partial=True)
+        serializer = UserSerializer(request.user, data=request.data, partial=True, context={'request': request})
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)
