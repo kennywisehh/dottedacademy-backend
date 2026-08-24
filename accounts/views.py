@@ -17,7 +17,10 @@ from .serializers import (
 from .tasks import send_verification_email_task, send_password_reset_email_task
 from learner.models import Streak
 from datetime import timedelta
-from django.utils import timezone
+from sib_api_v3_sdk.rest import ApiException
+import logging
+
+logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -42,7 +45,10 @@ class RegisterView(APIView):
         if serializer.is_valid():
             user = serializer.save()
             token_obj, _ = EmailVerificationToken.objects.get_or_create(user=user)
-            send_verification_email_task.delay(user.first_name, user.email, token_obj.token)
+            try:
+                send_verification_email_task(user.first_name, user.email, token_obj.token)
+            except ApiException:
+                logger.error(f"Verification email failed to send for {user.email}")
             Streak.objects.create(user=user)
             return Response({
                 'message': 'Registration successful. Please check your email to verify your account.',
@@ -186,6 +192,7 @@ class VerifyEmailView(APIView):
                 return Response({'error': 'Invalid or expired verification token.'}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 class PasswordResetRequestView(APIView):
     permission_classes = [AllowAny]
 
@@ -206,7 +213,10 @@ class PasswordResetRequestView(APIView):
                 user = User.objects.get(email=email)
                 PasswordResetToken.objects.filter(user=user, is_used=False).update(is_used=True)
                 token_obj = PasswordResetToken.objects.create(user=user)
-                send_password_reset_email_task.delay(user.first_name, user.email, token_obj.token)
+                try:
+                    send_password_reset_email_task(user.first_name, user.email, token_obj.token)
+                except ApiException:
+                    logger.error(f"Password reset email failed to send for {user.email}")
             except User.DoesNotExist:
                 pass
             return Response({'message': 'If this email exists, a password reset link has been sent.'}, status=status.HTTP_200_OK)
@@ -249,6 +259,7 @@ class PasswordResetConfirmView(APIView):
                 return Response({'error': 'Invalid or expired reset token.'}, status=status.HTTP_400_BAD_REQUEST)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 class ResendVerificationEmailView(APIView):
     permission_classes = [AllowAny]
 
@@ -273,7 +284,10 @@ class ResendVerificationEmailView(APIView):
                 return Response({'message': 'This account is already verified.'}, status=status.HTTP_200_OK)
             EmailVerificationToken.objects.filter(user=user).delete()
             token_obj = EmailVerificationToken.objects.create(user=user)
-            send_verification_email_task.delay(user.first_name, user.email, token_obj.token)
+            try:
+                send_verification_email_task(user.first_name, user.email, token_obj.token)
+            except ApiException:
+                logger.error(f"Verification email resend failed for {user.email}")
             return Response({'message': 'Verification email resent. Please check your inbox.'}, status=status.HTTP_200_OK)
         except User.DoesNotExist:
             return Response({'message': 'If this email exists, a verification email has been sent.'}, status=status.HTTP_200_OK)

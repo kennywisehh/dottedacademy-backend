@@ -1,7 +1,10 @@
+import logging
 from celery import shared_task
 from django.conf import settings
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
+
+logger = logging.getLogger(__name__)
 
 
 def _get_brevo_api():
@@ -10,7 +13,6 @@ def _get_brevo_api():
     return sib_api_v3_sdk.TransactionalEmailsApi(sib_api_v3_sdk.ApiClient(configuration))
 
 
-@shared_task
 def send_verification_email_task(first_name, email, token):
     api = _get_brevo_api()
     send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
@@ -19,18 +21,23 @@ def send_verification_email_task(first_name, email, token):
         subject="Verify your Dotted Academy account",
         text_content=f"""Hi {first_name},
 
-Welcome to Dotted Academy! Please verify your email address by using the token below:
+Welcome to Dotted Academy! Please verify your email address by using the code below:
 
-Token: {token}
+Code: {token}
+
+This code expires in 15 minutes.
 
 If you did not create an account, please ignore this email.
 
 — The Dotted Academy Team"""
     )
-    api.send_transac_email(send_smtp_email)
+    try:
+        api.send_transac_email(send_smtp_email)
+    except ApiException as e:
+        logger.error(f"Failed to send verification email to {email}: {e}")
+        raise
 
 
-@shared_task
 def send_password_reset_email_task(first_name, email, token):
     api = _get_brevo_api()
     send_smtp_email = sib_api_v3_sdk.SendSmtpEmail(
@@ -39,12 +46,18 @@ def send_password_reset_email_task(first_name, email, token):
         subject="Reset your Dotted Academy password",
         text_content=f"""Hi {first_name},
 
-We received a request to reset your password. Use the token below to reset it:
+We received a request to reset your password. Use the code below to reset it:
 
-Token: {token}
+Code: {token}
+
+This code expires in 15 minutes.
 
 If you did not request a password reset, please ignore this email.
 
 — The Dotted Academy Team"""
     )
-    api.send_transac_email(send_smtp_email)
+    try:
+        api.send_transac_email(send_smtp_email)
+    except ApiException as e:
+        logger.error(f"Failed to send password reset email to {email}: {e}")
+        raise
